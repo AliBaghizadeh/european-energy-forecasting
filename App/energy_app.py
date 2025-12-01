@@ -153,6 +153,41 @@ def predict_all_models(last_load: float, current_temp: float, country_id: str):
 def get_recent_logs():
     if not LOG_FILE.exists():
         return pd.DataFrame()
+    try:
+        df = pd.read_csv(LOG_FILE)
+        return df.tail(20).iloc[::-1]  # Show last 20, newest first
+    except:
+        return pd.DataFrame()
+
+def plot_load_forecast():
+    try:
+        df = get_recent_logs()
+        if df.empty or len(df) < 1:
+            return None
+        
+        if 'pred_xgboost' not in df.columns:
+            return None
+        
+        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+        df = df.dropna(subset=['timestamp', 'pred_xgboost'])
+        
+        if df.empty:
+            return None
+        
+        return gr.LinePlot(
+            df,
+            x="timestamp",
+            y="pred_xgboost",
+            title="XGBoost Predictions Over Time"
+        )
+    except Exception as e:
+        print(f"Error in plot_load_forecast: {e}")
+        return None
+
+def plot_temp_dist():
+    try:
+        df = get_recent_logs()
+        if df.empty or len(df) < 1:
             return None
         
         if 'current_temp' not in df.columns:
@@ -226,13 +261,22 @@ with gr.Blocks(title="⚡ Energy Load Forecast - Multi-Model Comparison") as dem
 
         # Tab 2: Monitoring Dashboard
         with gr.TabItem("📊 Monitoring"):
-            gr.Markdown("### 📈 Live Model Monitoring")
-            gr.Markdown("*Make some predictions first to see the monitoring plots!*")
+            gr.Markdown(
+                """
+                ### 📈 Live Model Monitoring
+                
+                These plots show the history of predictions made through this app:
+                - **XGBoost Predictions**: Model forecasts over time
+                - **Temperature Trend**: Input temperatures you've used
+                
+                *Make some predictions first to see the monitoring plots!*
+                """
+            )
             refresh_btn = gr.Button("🔄 Refresh Data")
             
             with gr.Row():
-                load_plot = gr.LinePlot(label="Load Forecast History")
-                temp_plot = gr.LinePlot(label="Temperature Trend")
+                load_plot = gr.LinePlot(label="XGBoost Predictions")
+                temp_plot = gr.LinePlot(label="Temperature Inputs")
             
             gr.Markdown("### 📝 Recent Inference Logs")
             log_table = gr.DataFrame(headers=["timestamp", "last_load", "current_temp", "country_id", "pred_xgboost"])

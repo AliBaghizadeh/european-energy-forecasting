@@ -1,0 +1,1 @@
+timestamp,last_load,current_temp,country_id,pred_xgboost,pred_lightgbm,pred_catboost
