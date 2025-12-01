@@ -64,6 +64,48 @@ jobs:
               return True
 
           def deploy_app():
+              try:
+                  print("Logging in...")
+                  login(token=os.environ['HF_TOKEN'], add_to_git_credential=False)
+
+                  # 1. Upload App file (./App/energy_app.py -> app.py)
+                  print("Uploading app (App/energy_app.py -> app.py)...")
+                  upload_file(
+                      path_or_fileobj='./App/energy_app.py',
+                      path_in_repo='app.py',
+                      repo_id=REPO_ID,
+                      repo_type=REPO_TYPE,
+                      commit_message='Deploy App'
+                  )
+
+                  # 2. Upload Requirements
+                  print("Syncing requirements.txt...")
+                  upload_file(
+                      path_or_fileobj='./requirements.txt',
+                      path_in_repo='requirements.txt',
+                      repo_id=REPO_ID,
+                      repo_type=REPO_TYPE,
+                      commit_message='Sync Requirements'
+                  )
+
+                  # 3. Upload Model directory (Model/ -> /Model)
+                  if check_dir('./Model'):
+                      print("Uploading Model directory...")
+                      upload_folder(
+                          folder_path='./Model',
+                          repo_id=REPO_ID,
+                          repo_type=REPO_TYPE,
+                          path_in_repo='Model',
+                          commit_message='Sync Model'
+                      )
+
+                  # 4. Upload Results directory (Results/ -> /Metrics)
+                  if check_dir('./Results'):
+                      print("Uploading Results directory...")
+                      upload_folder(
+                          folder_path='./Results',
+                          repo_id=REPO_ID,
+                          repo_type=REPO_TYPE,
                           path_in_repo='Metrics', # Renaming the directory to Metrics on the Hub
                           commit_message='Sync Metrics'
                       )
