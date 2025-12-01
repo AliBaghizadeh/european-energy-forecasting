@@ -163,16 +163,16 @@ def plot_load_forecast():
     try:
         df = get_recent_logs()
         if df.empty or len(df) < 1:
-            return gr.LinePlot(value=None, label="No data available yet. Make some predictions first!")
+            return None
         
         if 'last_load' not in df.columns or 'pred_xgboost' not in df.columns:
-            return gr.LinePlot(value=None, label="Missing required columns in logs")
+            return None
         
         df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
         df = df.dropna(subset=['timestamp'])
         
         if df.empty:
-            return gr.LinePlot(value=None, label="No valid timestamps in logs")
+            return None
         
         plot_df = df.melt(
             id_vars=['timestamp'], 
@@ -189,53 +189,43 @@ def plot_load_forecast():
         plot_df = plot_df.dropna()
         
         if plot_df.empty:
-            return gr.LinePlot(value=None, label="No valid data to plot")
+            return None
         
         return gr.LinePlot(
             plot_df,
             x="timestamp",
             y="Load (MW)",
             color="Type",
-            title="Actual Input vs Model Forecast",
-            tooltip=["timestamp", "Load (MW)", "Type"],
-            width=600,
-            height=350,
-            x_title="Time",
-            y_title="Load (MW)"
+            title="Actual Input vs Model Forecast"
         )
     except Exception as e:
         print(f"Error in plot_load_forecast: {e}")
-        return gr.LinePlot(value=None, label=f"Error: {str(e)}")
+        return None
 
 def plot_temp_dist():
     try:
         df = get_recent_logs()
         if df.empty or len(df) < 1:
-            return gr.LinePlot(value=None, label="No data available yet. Make some predictions first!")
+            return None
         
         if 'current_temp' not in df.columns:
-            return gr.LinePlot(value=None, label="Missing temperature column in logs")
+            return None
         
         df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
         df = df.dropna(subset=['timestamp', 'current_temp'])
         
         if df.empty:
-            return gr.LinePlot(value=None, label="No valid data to plot")
+            return None
         
         return gr.LinePlot(
             df,
             x="timestamp",
             y="current_temp",
-            title="Temperature Input Trend",
-            tooltip=["timestamp", "current_temp"],
-            width=600,
-            height=350,
-            x_title="Time",
-            y_title="Temperature (°C)"
+            title="Temperature Input Trend"
         )
     except Exception as e:
         print(f"Error in plot_temp_dist: {e}")
-        return gr.LinePlot(value=None, label=f"Error: {str(e)}")
+        return None
 
 # Gradio Interface
 with gr.Blocks(title="⚡ Energy Load Forecast - Multi-Model Comparison") as demo:
@@ -290,6 +280,7 @@ with gr.Blocks(title="⚡ Energy Load Forecast - Multi-Model Comparison") as dem
         # Tab 2: Monitoring Dashboard
         with gr.TabItem("📊 Monitoring"):
             gr.Markdown("### 📈 Live Model Monitoring")
+            gr.Markdown("*Make some predictions first to see the monitoring plots!*")
             refresh_btn = gr.Button("🔄 Refresh Data")
             
             with gr.Row():
