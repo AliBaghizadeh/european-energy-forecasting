@@ -15,5 +15,9 @@ optuna
 joblib
 requests
 seaborn
+boto3
+paramiko
+
+
 
 

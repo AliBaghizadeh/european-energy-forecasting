@@ -1,0 +1,8 @@
+{
+    "bucket_name": "european-energy-forecasting-2025",
+    "ec2_instance_id": "i-016f4a958b03f7249",
+    "ec2_public_ip": "18.153.53.234",
+    "dynamodb_table": "mlflow_metadata_table",
+    "region": "eu-central-1",
+    "key_pair_name": "european-energy-forecasting-key"
+}

@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import os
 import csv
-from weather_api import fetch_current_temperature
 
 # Model paths
 MODEL_DIR = Path("./Model")
@@ -171,141 +170,6 @@ def predict_all_models(last_load: float, current_temp: float, country_id: str):
     except Exception as e:
         print(f"Logging failed: {e}")
 
-    return results["XGBoost"], results["LightGBM"], results["CatBoost"]
-
-
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# Set style
-sns.set_theme(style="darkgrid")
-
-# Monitoring Dashboard Functions
-def get_recent_logs():
-    if not LOG_FILE.exists():
-        return pd.DataFrame()
-    try:
-        df = pd.read_csv(LOG_FILE)
-        return df.tail(20).iloc[::-1]  # Show last 20, newest first
-    except:
-        return pd.DataFrame()
-
-
-def plot_load_forecast():
-    try:
-        df = get_recent_logs()
-        if df.empty or len(df) < 1:
-            return None
-        
-        if 'pred_xgboost' not in df.columns:
-            return None
-        
-        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-        df = df.dropna(subset=['timestamp', 'pred_xgboost'])
-        
-        if df.empty:
-            return None
-            
-        # Create figure
-        fig, ax = plt.subplots(figsize=(10, 6))
-        
-        # Only add country grouping if country_id exists
-        if 'country_id' in df.columns:
-            country_names = {
-                'AT': 'Austria', 'DE': 'Germany', 'FR': 'France', 'IT': 'Italy',
-                'BE': 'Belgium', 'CH': 'Switzerland', 'NL': 'Netherlands',
-                'PL': 'Poland', 'CZ': 'Czech Republic', 'ES': 'Spain'
-            }
-            df['Country'] = df['country_id'].map(country_names).fillna(df['country_id'])
-            
-            sns.lineplot(data=df, x='timestamp', y='pred_xgboost', hue='Country', marker='o', ax=ax)
-            ax.set_title("XGBoost Predictions by Country")
-        else:
-            sns.lineplot(data=df, x='timestamp', y='pred_xgboost', marker='o', ax=ax)
-            ax.set_title("XGBoost Predictions Over Time")
-            
-        ax.set_xlabel("Time")
-        ax.set_ylabel("Predicted Load (MW)")
-        plt.xticks(rotation=45)
-        plt.tight_layout()
-        return fig
-        
-    except Exception as e:
-        print(f"Error in plot_load_forecast: {e}")
-        return None
-
-def plot_temp_dist():
-    try:
-        df = get_recent_logs()
-        if df.empty or len(df) < 1:
-            return None
-        
-        if 'current_temp' not in df.columns:
-            return None
-        
-        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-        df = df.dropna(subset=['timestamp', 'current_temp'])
-        
-        if df.empty:
-            return None
-            
-        # Create figure
-        fig, ax = plt.subplots(figsize=(10, 6))
-        
-        # Only add city grouping if country_id exists
-        if 'country_id' in df.columns:
-            city_names = {
-                'AT': 'Vienna', 'DE': 'Berlin', 'FR': 'Paris', 'IT': 'Rome',
-                'BE': 'Brussels', 'CH': 'Zurich', 'NL': 'Amsterdam',
-                'PL': 'Warsaw', 'CZ': 'Prague', 'ES': 'Madrid'
-            }
-            df['City'] = df['country_id'].map(city_names).fillna(df['country_id'])
-            
-            sns.lineplot(data=df, x='timestamp', y='current_temp', hue='City', marker='o', ax=ax)
-            ax.set_title("Temperature Trends by City")
-        else:
-            sns.lineplot(data=df, x='timestamp', y='current_temp', marker='o', ax=ax)
-            ax.set_title("Temperature Input Trend")
-            
-        ax.set_xlabel("Time")
-        ax.set_ylabel("Temperature (°C)")
-        plt.xticks(rotation=45)
-        plt.tight_layout()
-        return fig
-        
-    except Exception as e:
-        print(f"Error in plot_temp_dist: {e}")
-        return None
-
-
-# Weather API Integration
-def fetch_weather_for_country(country_id: str):
-    """
-    Fetch current weather for a country and return temperature + status message.
-    
-    Returns:
-        tuple: (temperature: float, status_message: str)
-    """
-    weather_data = fetch_current_temperature(country_id)
-    
-    if weather_data is None:
-        return (
-            15.0,  # Default fallback temperature
-            "⚠️ Could not fetch weather data. Using default temperature.",
-        )
-    
-    temp = weather_data["temperature"]
-    city = weather_data["city"]
-    description = weather_data["description"]
-    
-    status_msg = f"✅ Fetched from {city}: {temp}°C ({description})"
-    
-    return temp, status_msg
-
-
-# Gradio Interface
-with gr.Blocks(title="⚡ Energy Load Forecast - Multi-Model Comparison") as demo:
-    gr.Markdown(
         """
         # ⚡ Energy Load Forecast: Multi-Model Comparison
         
@@ -322,22 +186,14 @@ with gr.Blocks(title="⚡ Energy Load Forecast - Multi-Model Comparison") as dem
                     last_load = gr.Slider(
                         0, 10000, step=1, label="Last Known Load (MW)", value=5000
                     )
-                    
+                    current_temp = gr.Slider(
+                        -20, 40, step=0.1, label="Current Temperature (°C)", value=15.0
+                    )
                     country_id = gr.Radio(
                         ["AT", "DE", "FR", "IT", "BE", "CH", "NL", "PL", "CZ", "ES"],
                         label="Country ID",
                         value="DE",
                     )
-                    
-                    with gr.Row():
-                        fetch_weather_btn = gr.Button("🌤️ Fetch Current Weather", size="sm")
-                    
-                    weather_status = gr.Markdown("")
-                    
-                    current_temp = gr.Slider(
-                        -20, 40, step=0.1, label="Current Temperature (°C)", value=15.0
-                    )
-                    
                     predict_btn = gr.Button(
                         "🔮 Predict with All Models", variant="primary"
                     )
@@ -383,8 +239,8 @@ with gr.Blocks(title="⚡ Energy Load Forecast - Multi-Model Comparison") as dem
             refresh_btn = gr.Button("🔄 Refresh Data")
 
             with gr.Row():
-                load_plot = gr.Plot(label="XGBoost Predictions")
-                temp_plot = gr.Plot(label="Temperature Inputs")
+                load_plot = gr.LinePlot(label="XGBoost Predictions")
+                temp_plot = gr.LinePlot(label="Temperature Inputs")
 
             gr.Markdown("### 📝 Recent Inference Logs")
             log_table = gr.DataFrame(
@@ -397,21 +253,15 @@ with gr.Blocks(title="⚡ Energy Load Forecast - Multi-Model Comparison") as dem
                 ]
             )
 
-            # Refresh logic - functions return plot objects which update the components
-            def refresh_all():
-                """Refresh all monitoring components"""
-                return plot_load_forecast(), plot_temp_dist(), get_recent_logs()
-            
-            refresh_btn.click(
-                fn=refresh_all,
-                outputs=[load_plot, temp_plot, log_table]
-            )
-            
+            # Refresh logic
+            refresh_btn.click(plot_load_forecast, outputs=load_plot)
+            refresh_btn.click(plot_temp_dist, outputs=temp_plot)
+            refresh_btn.click(get_recent_logs, outputs=log_table)
+
             # Auto-load on tab select
-            demo.load(
-                fn=refresh_all,
-                outputs=[load_plot, temp_plot, log_table]
-            )
+            demo.load(plot_load_forecast, outputs=load_plot)
+            demo.load(plot_temp_dist, outputs=temp_plot)
+            demo.load(get_recent_logs, outputs=log_table)
 
     gr.Markdown(
         """
@@ -429,14 +279,7 @@ with gr.Blocks(title="⚡ Energy Load Forecast - Multi-Model Comparison") as dem
         """
     )
 
-    # Connect weather fetch button
-    fetch_weather_btn.click(
-        fn=fetch_weather_for_country,
-        inputs=[country_id],
-        outputs=[current_temp, weather_status],
-    )
-    
-    # Connect prediction button
+    # Connect button to prediction function
     predict_btn.click(
         fn=predict_all_models,
         inputs=[last_load, current_temp, country_id],
@@ -445,4 +288,4 @@ with gr.Blocks(title="⚡ Energy Load Forecast - Multi-Model Comparison") as dem
 
 # Launch
 if __name__ == "__main__":
-    demo.launch(server_name="127.0.0.1", server_port=7860)
+    demo.launch(server_name="0.0.0.0", server_port=7860)

@@ -21,12 +21,26 @@ from xgboost import XGBRegressor
 from lightgbm import LGBMRegressor
 from catboost import CatBoostRegressor
 import joblib
+import requests
+
+# Monkey-patch requests to override Host header for MLflow
+original_request = requests.Session.request
+
+def patched_request(self, method, url, **kwargs):
+    if 'headers' not in kwargs:
+        kwargs['headers'] = {}
+    kwargs['headers']['Host'] = '127.0.0.1:5001'
+    return original_request(self, method, url, **kwargs)
+
+requests.Session.request = patched_request
 
 # Import data processing from train.py
 from train import load_and_preprocess_data, engineer_features, DATA_PATH, target_col
 
-# Set MLflow Experiment
-mlflow.set_tracking_uri("file:./mlruns")
+# Set MLflow Experiment - Remote AWS Server
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://18.153.53.234:5000")
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+print(f"MLflow Tracking URI: {MLFLOW_TRACKING_URI}")
 
 # Load data once (shared across all optimizations)
 print("Loading and preprocessing data...")
@@ -52,7 +66,6 @@ def optimize_xgboost(trial):
         "subsample": trial.suggest_float("subsample", 0.6, 1.0),
         "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
         "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
-        "gamma": trial.suggest_float("gamma", 0.0, 5.0),
         "objective": "reg:squarederror",
         "device": "cuda",
         "n_jobs": -1,
@@ -87,8 +100,6 @@ def optimize_lightgbm(trial):
         "subsample": trial.suggest_float("subsample", 0.6, 1.0),
         "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
         "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
-        "reg_alpha": trial.suggest_float("reg_alpha", 0.0, 1.0),
-        "reg_lambda": trial.suggest_float("reg_lambda", 0.0, 1.0),
         "device": "cpu",  # Use CPU for stability on Windows
         "n_jobs": -1,
         "random_state": 42,
@@ -120,8 +131,6 @@ def optimize_catboost(trial):
         "learning_rate": trial.suggest_float("learning_rate", 0.005, 0.3, log=True),
         "depth": trial.suggest_int("depth", 3, 10),
         "l2_leaf_reg": trial.suggest_float("l2_leaf_reg", 1e-3, 10.0, log=True),
-        "bagging_temperature": trial.suggest_float("bagging_temperature", 0.0, 1.0),
-        "random_strength": trial.suggest_float("random_strength", 0.0, 10.0),
         "task_type": "GPU",
         "random_state": 42,
         "verbose": 0,
@@ -148,7 +157,7 @@ def optimize_catboost(trial):
 # Main Execution
 # ============================================================================
 if __name__ == "__main__":
-    N_TRIALS = 50  # Increase for more thorough search
+    N_TRIALS = 20  # Increase for more thorough search
     
     results = {}
     
@@ -176,6 +185,19 @@ if __name__ == "__main__":
         "params": study_xgb.best_params
     }
     
+    # Log model to MLflow (ensure remote tracking)
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)  # Force remote
+    print(f"\n📤 Logging XGBoost to MLflow at: {mlflow.get_tracking_uri()}")
+    try:
+        mlflow.set_experiment("XGBoost_HPO")
+        with mlflow.start_run(run_name="Best_XGBoost"):
+            mlflow.log_params(best_xgb_params)
+            mlflow.log_metric("mae", study_xgb.best_value)
+            mlflow.sklearn.log_model(final_xgb, "model")
+            print("✅ Logged best XGBoost model to MLflow")
+    except Exception as e:
+        print(f"❌ Failed to log XGBoost to MLflow: {e}")
+    
     # ========== LightGBM ==========
     print("\n" + "="*60)
     print("🚀 Optimizing LightGBM...")
@@ -199,6 +221,19 @@ if __name__ == "__main__":
         "mae": study_lgb.best_value,
         "params": study_lgb.best_params
     }
+
+    # Log model to MLflow (ensure remote tracking)
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)  # Force remote
+    print(f"\n📤 Logging LightGBM to MLflow at: {mlflow.get_tracking_uri()}")
+    try:
+        mlflow.set_experiment("LightGBM_HPO")
+        with mlflow.start_run(run_name="Best_LightGBM"):
+            mlflow.log_params(best_lgb_params)
+            mlflow.log_metric("mae", study_lgb.best_value)
+            mlflow.sklearn.log_model(final_lgb, "model")
+            print("✅ Logged best LightGBM model to MLflow")
+    except Exception as e:
+        print(f"❌ Failed to log LightGBM to MLflow: {e}")
     
     # ========== CatBoost ==========
     print("\n" + "="*60)
@@ -223,6 +258,19 @@ if __name__ == "__main__":
         "mae": study_cat.best_value,
         "params": study_cat.best_params
     }
+
+    # Log model to MLflow (ensure remote tracking)
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)  # Force remote
+    print(f"\n📤 Logging CatBoost to MLflow at: {mlflow.get_tracking_uri()}")
+    try:
+        mlflow.set_experiment("CatBoost_HPO")
+        with mlflow.start_run(run_name="Best_CatBoost"):
+            mlflow.log_params(best_cat_params)
+            mlflow.log_metric("mae", study_cat.best_value)
+            mlflow.sklearn.log_model(final_cat, "model")
+            print("✅ Logged best CatBoost model to MLflow")
+    except Exception as e:
+        print(f"❌ Failed to log CatBoost to MLflow: {e}")
     
     # ========== Save All Models ==========
     print("\n" + "="*60)
