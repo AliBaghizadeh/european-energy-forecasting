@@ -63,7 +63,7 @@ print(f"Dataset: {len(X_scaled)} rows, {len(X_scaled.columns)} features")
 # ============================================================================
 def optimize_xgboost(trial):
     params = {
-        "n_estimators": trial.suggest_int("n_estimators", 200, 2000),
+        "n_estimators": trial.suggest_int("n_estimators", 200, 300),
         "learning_rate": trial.suggest_float("learning_rate", 0.005, 0.3, log=True),
         "max_depth": trial.suggest_int("max_depth", 3, 12),
         "subsample": trial.suggest_float("subsample", 0.6, 1.0),
@@ -97,7 +97,7 @@ def optimize_xgboost(trial):
 # ============================================================================
 def optimize_lightgbm(trial):
     params = {
-        "n_estimators": trial.suggest_int("n_estimators", 200, 2000),
+        "n_estimators": trial.suggest_int("n_estimators", 200, 300),
         "learning_rate": trial.suggest_float("learning_rate", 0.005, 0.3, log=True),
         "max_depth": trial.suggest_int("max_depth", 3, 12),
         "num_leaves": trial.suggest_int("num_leaves", 20, 150),
@@ -132,7 +132,7 @@ def optimize_lightgbm(trial):
 # ============================================================================
 def optimize_catboost(trial):
     params = {
-        "iterations": trial.suggest_int("iterations", 200, 2000),
+        "iterations": trial.suggest_int("iterations", 200, 300),
         "learning_rate": trial.suggest_float("learning_rate", 0.005, 0.3, log=True),
         "depth": trial.suggest_int("depth", 3, 10),
         "l2_leaf_reg": trial.suggest_float("l2_leaf_reg", 1e-3, 10.0, log=True),
@@ -160,10 +160,55 @@ def optimize_catboost(trial):
 
 
 # ============================================================================
+# Helper function for MLflow logging
+# ============================================================================
+def log_model_to_mlflow(experiment_name, run_name, model, params, mae_score, input_example=None):
+    """Log model to MLflow with detailed error reporting"""
+    print(f"\n📤 Logging {run_name} to MLflow...")
+    
+    try:
+        mlflow.set_experiment(experiment_name)
+        with mlflow.start_run(run_name=run_name) as run:
+            print(f"   Run ID: {run.info.run_id}")
+            
+            # Log parameters
+            mlflow.log_params(params)
+            print("   ✓ Parameters logged")
+            
+            # Log metrics
+            mlflow.log_metric("mae", mae_score)
+            mlflow.log_metric("rmse", np.sqrt(mae_score))
+            print("   ✓ Metrics logged")
+            
+            # Log model
+            # Fix: Use 'name' instead of 'artifact_path' (deprecated)
+            # Fix: Add input_example to infer signature
+            mlflow.sklearn.log_model(
+                model, 
+                name="model", 
+                input_example=input_example
+            )
+            print("   ✓ Model logged")
+            
+            print(f"✅ Successfully logged {run_name}!")
+            print(f"   View at: {mlflow.get_tracking_uri()}/#/experiments/{run.info.experiment_id}")
+            return True
+            
+    except Exception as e:
+        print(f"❌ Failed to log {run_name} to MLflow:")
+        print(f"   Error type: {type(e).__name__}")
+        print(f"   Error message: {str(e)}")
+        import traceback
+        print("\n   Full traceback:")
+        traceback.print_exc()
+        return False
+
+
+# ============================================================================
 # Main Execution
 # ============================================================================
 if __name__ == "__main__":
-    N_TRIALS = 20  # Increase for more thorough search
+    N_TRIALS = 1  # Increase for more thorough search
 
     results = {}
 
@@ -198,18 +243,15 @@ if __name__ == "__main__":
         "params": study_xgb.best_params,
     }
 
-    # Log model to MLflow (ensure remote tracking)
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)  # Force remote
-    print(f"\n📤 Logging XGBoost to MLflow at: {mlflow.get_tracking_uri()}")
-    try:
-        mlflow.set_experiment("XGBoost_HPO")
-        with mlflow.start_run(run_name="Best_XGBoost"):
-            mlflow.log_params(best_xgb_params)
-            mlflow.log_metric("mae", study_xgb.best_value)
-            mlflow.sklearn.log_model(final_xgb, "model")
-            print("✅ Logged best XGBoost model to MLflow")
-    except Exception as e:
-        print(f"❌ Failed to log XGBoost to MLflow: {e}")
+    # Log to MLflow
+    log_model_to_mlflow(
+        "XGBoost_HPO", 
+        "Best_XGBoost", 
+        final_xgb, 
+        best_xgb_params, 
+        study_xgb.best_value,
+        input_example=X_scaled.iloc[:5]
+    )
 
     # ========== LightGBM ==========
     print("\n" + "=" * 60)
@@ -237,18 +279,15 @@ if __name__ == "__main__":
         "params": study_lgb.best_params,
     }
 
-    # Log model to MLflow (ensure remote tracking)
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)  # Force remote
-    print(f"\n📤 Logging LightGBM to MLflow at: {mlflow.get_tracking_uri()}")
-    try:
-        mlflow.set_experiment("LightGBM_HPO")
-        with mlflow.start_run(run_name="Best_LightGBM"):
-            mlflow.log_params(best_lgb_params)
-            mlflow.log_metric("mae", study_lgb.best_value)
-            mlflow.sklearn.log_model(final_lgb, "model")
-            print("✅ Logged best LightGBM model to MLflow")
-    except Exception as e:
-        print(f"❌ Failed to log LightGBM to MLflow: {e}")
+    # Log to MLflow
+    log_model_to_mlflow(
+        "LightGBM_HPO", 
+        "Best_LightGBM", 
+        final_lgb, 
+        best_lgb_params, 
+        study_lgb.best_value,
+        input_example=X_scaled.iloc[:5]
+    )
 
     # ========== CatBoost ==========
     print("\n" + "=" * 60)
@@ -281,18 +320,15 @@ if __name__ == "__main__":
         "params": study_cat.best_params,
     }
 
-    # Log model to MLflow (ensure remote tracking)
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)  # Force remote
-    print(f"\n📤 Logging CatBoost to MLflow at: {mlflow.get_tracking_uri()}")
-    try:
-        mlflow.set_experiment("CatBoost_HPO")
-        with mlflow.start_run(run_name="Best_CatBoost"):
-            mlflow.log_params(best_cat_params)
-            mlflow.log_metric("mae", study_cat.best_value)
-            mlflow.sklearn.log_model(final_cat, "model")
-            print("✅ Logged best CatBoost model to MLflow")
-    except Exception as e:
-        print(f"❌ Failed to log CatBoost to MLflow: {e}")
+    # Log to MLflow
+    log_model_to_mlflow(
+        "CatBoost_HPO", 
+        "Best_CatBoost", 
+        final_cat, 
+        best_cat_params, 
+        study_cat.best_value,
+        input_example=X_scaled.iloc[:5]
+    )
 
     # ========== Save All Models ==========
     print("\n" + "=" * 60)
