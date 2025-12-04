@@ -221,6 +221,9 @@ mlflow ui
 | **Optimization** | Optuna |
 | **Experiment Tracking** | MLflow |
 | **Web Framework** | Gradio |
+| **Weather API** | OpenWeatherMap API |
+| **Cloud Services** | AWS EC2, AWS S3, AWS RDS (PostgreSQL) |
+| **Web Server** | Nginx |
 | **CI/CD** | GitHub Actions, CML |
 | **Deployment** | HuggingFace Spaces |
 | **Data Processing** | Pandas, NumPy |
