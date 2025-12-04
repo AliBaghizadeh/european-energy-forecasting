@@ -1,4 +1,4 @@
-# Imports of important libraries
+# Imports important libraries
 import gradio as gr
 import joblib
 import numpy as np
