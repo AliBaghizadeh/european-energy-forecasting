@@ -261,6 +261,7 @@ This project is licensed under the MIT License.
 - European energy dataset providers
 - MLflow and Optuna communities
 - HuggingFace for free hosting
+- AWS S3 and EC2 free access
 
 ---
 
