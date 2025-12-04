@@ -1,0 +1,50 @@
+name: Deploy to Hugging Face Spaces
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app.py'
+      - 'weather_api.py'
+      - 'requirements.txt'
+      - 'Model/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Push to Hugging Face Spaces
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "GitHub Actions"
+          
+          # Clone HF Space
+          git clone https://huggingface.co/spaces/alibaghizade/time_series_energy hf-space
+          
+          # Copy files
+          cp app.py hf-space/
+          cp weather_api.py hf-space/
+          cp requirements.txt hf-space/
+          
+          # Copy model files if they exist
+          if [ -d "Model" ]; then
+            mkdir -p hf-space/Model
+            cp Model/xgboost_model.json hf-space/Model/ 2>/dev/null || true
+            cp Model/lightgbm_model.pkl hf-space/Model/ 2>/dev/null || true
+            cp Model/catboost_model.pkl hf-space/Model/ 2>/dev/null || true
+            cp Model/scaler.pkl hf-space/Model/ 2>/dev/null || true
+          fi
+          
+          # Push to HF Space
+          cd hf-space
+          git add .
+          git diff --quiet && git diff --staged --quiet || git commit -m "Auto-deploy from GitHub: $GITHUB_SHA"
+          git push https://alibaghizade:$HF_TOKEN@huggingface.co/spaces/alibaghizade/time_series_energy main
