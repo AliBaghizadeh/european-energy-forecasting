@@ -208,3 +208,7 @@ __marimo__/
 CICD-for-machine-learning/
 mlruns/
 Model/
+
+# AWS SSH Keys
+*.pem
+
